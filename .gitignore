@@ -1,0 +1,14 @@
+.env
+*.exe
+*.test
+coverage.out
+
+# Local/editor noise
+.idea/
+.vscode/
+.DS_Store
+
+# Build and cache outputs
+bin/
+dist/
+tmp/

@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: lead_scout
+      POSTGRES_PASSWORD: lead_scout
+      POSTGRES_DB: lead_scout
+    ports:
+      - "5432:5432"
+    volumes:
+      - lead_scout_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lead_scout -d lead_scout"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  lead_scout_pg:
