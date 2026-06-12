@@ -48,6 +48,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/collect", s.collect)
 	s.mux.HandleFunc("POST /api/score", s.score)
 	s.mux.HandleFunc("POST /api/digest", s.digest)
+	s.mux.HandleFunc("POST /api/telegram/test", s.telegramTest)
+	s.mux.HandleFunc("POST /api/telegram/lead-test", s.telegramLeadTest)
 	s.mux.HandleFunc("GET /api/leads", s.listLeads)
 	s.mux.HandleFunc("PATCH /api/leads/{id}/state", s.updateLeadState)
 }
@@ -228,6 +230,10 @@ func (s *Server) digest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Send {
+		if len(candidates) == 0 {
+			writeJSON(w, http.StatusOK, digestResponse{Sent: false, Leads: []apiLeadWithScore{}, Message: "no qualifying founder leads to send"})
+			return
+		}
 		notifier := telegram.New(s.cfg.TelegramBotToken, s.cfg.TelegramChatID)
 		if !notifier.Configured() {
 			writeError(w, http.StatusBadRequest, errors.New("telegram is not configured"))
@@ -244,7 +250,48 @@ func (s *Server) digest(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	writeJSON(w, http.StatusOK, digestResponse{Sent: req.Send, Leads: candidates})
+	writeJSON(w, http.StatusOK, digestResponse{Sent: req.Send && len(candidates) > 0, Leads: toAPILeadWithScores(candidates)})
+}
+
+func (s *Server) telegramTest(w http.ResponseWriter, r *http.Request) {
+	notifier := telegram.New(s.cfg.TelegramBotToken, s.cfg.TelegramChatID)
+	if !notifier.Configured() {
+		writeError(w, http.StatusBadRequest, errors.New("telegram is not configured"))
+		return
+	}
+	if err := notifier.SendTest(r.Context()); err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"sent": true})
+}
+
+func (s *Server) telegramLeadTest(w http.ResponseWriter, r *http.Request) {
+	var req apiLeadWithScore
+	if err := readJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if req.Lead.Title == "" || req.Lead.URL == "" {
+		writeError(w, http.StatusBadRequest, errors.New("lead.title and lead.url are required"))
+		return
+	}
+	if req.Score.Score == 0 {
+		req.Score.Score = 80
+	}
+	if req.Score.Rationale == "" {
+		req.Score.Rationale = "Manual Scalar test lead."
+	}
+	notifier := telegram.New(s.cfg.TelegramBotToken, s.cfg.TelegramChatID)
+	if !notifier.Configured() {
+		writeError(w, http.StatusBadRequest, errors.New("telegram is not configured"))
+		return
+	}
+	if err := notifier.SendHotLead(r.Context(), fromAPILead(req.Lead), fromAPILeadScore(req.Score)); err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"sent": true})
 }
 
 func (s *Server) listLeads(w http.ResponseWriter, r *http.Request) {
@@ -267,7 +314,7 @@ func (s *Server) listLeads(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, leadListResponse{Leads: leads})
+	writeJSON(w, http.StatusOK, leadListResponse{Leads: toAPILeadWithScores(leads)})
 }
 
 func (s *Server) updateLeadState(w http.ResponseWriter, r *http.Request) {
@@ -350,12 +397,13 @@ type digestRequest struct {
 }
 
 type digestResponse struct {
-	Sent  bool                 `json:"sent"`
-	Leads []core.LeadWithScore `json:"leads"`
+	Sent    bool               `json:"sent"`
+	Leads   []apiLeadWithScore `json:"leads"`
+	Message string             `json:"message,omitempty"`
 }
 
 type leadListResponse struct {
-	Leads []core.LeadWithScore `json:"leads"`
+	Leads []apiLeadWithScore `json:"leads"`
 }
 
 type updateStateRequest struct {
@@ -382,4 +430,103 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, status int, err error) {
 	writeJSON(w, status, map[string]string{"error": err.Error()})
+}
+
+type apiLeadWithScore struct {
+	Lead  apiLead      `json:"lead"`
+	Score apiLeadScore `json:"score"`
+}
+
+type apiLead struct {
+	ID           int64          `json:"id"`
+	Source       string         `json:"source"`
+	Category     core.Category  `json:"category"`
+	Title        string         `json:"title"`
+	Body         string         `json:"body"`
+	URL          string         `json:"url"`
+	Author       string         `json:"author"`
+	Company      string         `json:"company"`
+	Location     string         `json:"location"`
+	Compensation string         `json:"compensation"`
+	State        core.LeadState `json:"state"`
+	CreatedAt    time.Time      `json:"created_at"`
+}
+
+type apiLeadScore struct {
+	Score         int    `json:"score"`
+	Rationale     string `json:"rationale"`
+	DraftOpener   string `json:"draft_opener"`
+	ShouldNotify  bool   `json:"should_notify"`
+	Model         string `json:"model"`
+	PromptVersion string `json:"prompt_version"`
+}
+
+func toAPILeadWithScores(items []core.LeadWithScore) []apiLeadWithScore {
+	if len(items) == 0 {
+		return []apiLeadWithScore{}
+	}
+	out := make([]apiLeadWithScore, 0, len(items))
+	for _, item := range items {
+		out = append(out, apiLeadWithScore{
+			Lead:  toAPILead(item.Lead),
+			Score: toAPILeadScore(item.Score),
+		})
+	}
+	return out
+}
+
+func toAPILead(lead core.Lead) apiLead {
+	return apiLead{
+		ID:           lead.ID,
+		Source:       lead.Source,
+		Category:     lead.Category,
+		Title:        lead.Title,
+		Body:         lead.Body,
+		URL:          lead.URL,
+		Author:       lead.Author,
+		Company:      lead.Company,
+		Location:     lead.Location,
+		Compensation: lead.Compensation,
+		State:        lead.State,
+		CreatedAt:    lead.CreatedAt,
+	}
+}
+
+func toAPILeadScore(score core.LeadScore) apiLeadScore {
+	return apiLeadScore{
+		Score:         score.Score,
+		Rationale:     score.Rationale,
+		DraftOpener:   score.DraftOpener,
+		ShouldNotify:  score.ShouldNotify,
+		Model:         score.Model,
+		PromptVersion: score.PromptVersion,
+	}
+}
+
+func fromAPILead(lead apiLead) core.Lead {
+	return core.Lead{
+		ID:           lead.ID,
+		Source:       lead.Source,
+		Category:     lead.Category,
+		Title:        lead.Title,
+		Body:         lead.Body,
+		URL:          lead.URL,
+		Author:       lead.Author,
+		Company:      lead.Company,
+		Location:     lead.Location,
+		Compensation: lead.Compensation,
+		State:        lead.State,
+		CreatedAt:    lead.CreatedAt,
+	}
+}
+
+func fromAPILeadScore(score apiLeadScore) core.LeadScore {
+	return core.LeadScore{
+		Score:         score.Score,
+		Rationale:     score.Rationale,
+		DraftOpener:   score.DraftOpener,
+		ShouldNotify:  score.ShouldNotify,
+		Model:         score.Model,
+		PromptVersion: score.PromptVersion,
+	}
 }
