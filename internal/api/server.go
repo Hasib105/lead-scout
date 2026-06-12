@@ -48,8 +48,6 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/collect", s.collect)
 	s.mux.HandleFunc("POST /api/score", s.score)
 	s.mux.HandleFunc("POST /api/digest", s.digest)
-	s.mux.HandleFunc("POST /api/telegram/test", s.telegramTest)
-	s.mux.HandleFunc("POST /api/telegram/lead-test", s.telegramLeadTest)
 	s.mux.HandleFunc("GET /api/leads", s.listLeads)
 	s.mux.HandleFunc("PATCH /api/leads/{id}/state", s.updateLeadState)
 }
@@ -253,47 +251,6 @@ func (s *Server) digest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, digestResponse{Sent: req.Send && len(candidates) > 0, Leads: toAPILeadWithScores(candidates)})
 }
 
-func (s *Server) telegramTest(w http.ResponseWriter, r *http.Request) {
-	notifier := telegram.New(s.cfg.TelegramBotToken, s.cfg.TelegramChatID)
-	if !notifier.Configured() {
-		writeError(w, http.StatusBadRequest, errors.New("telegram is not configured"))
-		return
-	}
-	if err := notifier.SendTest(r.Context()); err != nil {
-		writeError(w, http.StatusBadGateway, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"sent": true})
-}
-
-func (s *Server) telegramLeadTest(w http.ResponseWriter, r *http.Request) {
-	var req apiLeadWithScore
-	if err := readJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
-		return
-	}
-	if req.Lead.Title == "" || req.Lead.URL == "" {
-		writeError(w, http.StatusBadRequest, errors.New("lead.title and lead.url are required"))
-		return
-	}
-	if req.Score.Score == 0 {
-		req.Score.Score = 80
-	}
-	if req.Score.Rationale == "" {
-		req.Score.Rationale = "Manual Scalar test lead."
-	}
-	notifier := telegram.New(s.cfg.TelegramBotToken, s.cfg.TelegramChatID)
-	if !notifier.Configured() {
-		writeError(w, http.StatusBadRequest, errors.New("telegram is not configured"))
-		return
-	}
-	if err := notifier.SendHotLead(r.Context(), fromAPILead(req.Lead), fromAPILeadScore(req.Score)); err != nil {
-		writeError(w, http.StatusBadGateway, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"sent": true})
-}
-
 func (s *Server) listLeads(w http.ResponseWriter, r *http.Request) {
 	limit := 50
 	if raw := r.URL.Query().Get("limit"); raw != "" {
@@ -494,34 +451,6 @@ func toAPILead(lead core.Lead) apiLead {
 
 func toAPILeadScore(score core.LeadScore) apiLeadScore {
 	return apiLeadScore{
-		Score:         score.Score,
-		Rationale:     score.Rationale,
-		DraftOpener:   score.DraftOpener,
-		ShouldNotify:  score.ShouldNotify,
-		Model:         score.Model,
-		PromptVersion: score.PromptVersion,
-	}
-}
-
-func fromAPILead(lead apiLead) core.Lead {
-	return core.Lead{
-		ID:           lead.ID,
-		Source:       lead.Source,
-		Category:     lead.Category,
-		Title:        lead.Title,
-		Body:         lead.Body,
-		URL:          lead.URL,
-		Author:       lead.Author,
-		Company:      lead.Company,
-		Location:     lead.Location,
-		Compensation: lead.Compensation,
-		State:        lead.State,
-		CreatedAt:    lead.CreatedAt,
-	}
-}
-
-func fromAPILeadScore(score apiLeadScore) core.LeadScore {
-	return core.LeadScore{
 		Score:         score.Score,
 		Rationale:     score.Rationale,
 		DraftOpener:   score.DraftOpener,

@@ -52,10 +52,6 @@ func (c Client) SendDigest(ctx context.Context, leads []core.LeadWithScore) erro
 	return c.send(ctx, b.String(), nil)
 }
 
-func (c Client) SendTest(ctx context.Context) error {
-	return c.send(ctx, "Lead Scout Telegram test", nil)
-}
-
 func (c Client) send(ctx context.Context, text string, replyMarkup any) error {
 	if !c.Configured() {
 		return errors.New("telegram is not configured")
