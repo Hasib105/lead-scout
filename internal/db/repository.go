@@ -175,7 +175,7 @@ func (r *Repository) InsertLeadScore(ctx context.Context, score core.LeadScore) 
 	return score, err
 }
 
-func (r *Repository) DigestCandidates(ctx context.Context, category core.Category, minScore int, limit int) ([]core.LeadWithScore, error) {
+func (r *Repository) DigestCandidates(ctx context.Context, categories []core.Category, minScore int, limit int) ([]core.LeadWithScore, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		select l.id, l.raw_item_id, l.source, l.external_id, l.category, l.title, l.body, l.url, l.canonical_url,
 		       l.author, l.company, l.location, l.compensation, l.posted_at, l.content_hash, l.state, l.created_at, l.updated_at,
@@ -189,11 +189,11 @@ func (r *Repository) DigestCandidates(ctx context.Context, category core.Categor
 			limit 1
 		) s on true
 		where l.state in ('new', 'saved')
-		  and l.category = $1
+		  and l.category = any($1)
 		  and s.score >= $2
 		order by s.score desc, l.created_at desc
 		limit $3
-	`, string(category), minScore, limit)
+	`, categories, minScore, limit)
 	if err != nil {
 		return nil, err
 	}

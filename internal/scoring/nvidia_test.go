@@ -58,8 +58,8 @@ func TestNVIDIAScorerFallsBackWithoutKey(t *testing.T) {
 	score, err := NewNVIDIA("", "", "", NewHeuristic()).Score(context.Background(), core.Lead{
 		ID:       9,
 		Category: core.CategoryGig,
-		Title:    "Unpaid intern",
-		Body:     "equity only",
+		Title:    "Senior developer needed",
+		Body:     "Contract work for backend API development",
 	})
 	if err != nil {
 		t.Fatal(err)

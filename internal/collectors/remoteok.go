@@ -46,5 +46,5 @@ func (r RemoteOK) Fetch(ctx context.Context) ([]core.RawItem, error) {
 			Payload:    payload,
 		})
 	}
-	return items, nil
+	return filterByCurrentMonth(items), nil
 }

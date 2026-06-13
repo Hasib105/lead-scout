@@ -2,13 +2,38 @@
 
 Personal lead-generation pipeline for premium freelance gigs and early-stage founder rescue work.
 
-V1 is intentionally small:
+The roadmap has three phases. Phase 1 is the working API-first baseline, Phase 2 adds better founder-intent detection, and Phase 3 adds optional risk-aware enrichment.
+
+## Roadmap
+
+### Phase 1: Weekend V1
+
+Intentionally small, zero-browser-automation baseline:
 
 - API-first collectors only.
+- Hacker News, Braintrust, RemoteOK, WeWorkRemotely, and Reddit collectors.
 - Docker Postgres for storage.
 - NVIDIA API scoring after a heuristic gate.
-- Telegram alerts and digests.
+- Fast gig alerts and daily founder digests through Telegram.
 - No automated outreach, LinkedIn automation, Discord self-bots, or logged-in scraping.
+
+### Phase 2: Founder-Intent Classifier
+
+Improve the "vibe-code rescue" lane:
+
+- Monitor founder/no-code/vibe-coding communities for production-readiness pain.
+- Classify signals such as Lovable/Bolt prototypes, Supabase RLS, burned credits, auth/deployment issues, and "should I hire a developer" language.
+- Add inbound marketplace tracking for Lovable Experts, VibeCodeFixers, Fiverr, and similar manual-listing channels.
+- Feed outcome feedback from saved/rejected/won/lost leads back into scoring rubrics.
+
+### Phase 3: Risk-Aware Enrichment
+
+Optional enrichment only where it is worth the platform risk:
+
+- LinkedIn read-assist through a human-controlled Windows browser session, never automated writes.
+- X build-in-public queries through paid API access only, not logged-in scraping.
+- Manual Discord/community presence tracking without self-bots.
+- Keep enrichment separate from collection so the core pipeline remains API-first and resilient.
 
 ## Requirements
 

@@ -119,6 +119,7 @@ func collect(ctx context.Context, cfg config.Config, args []string) error {
 func score(ctx context.Context, cfg config.Config, args []string) error {
 	fs := flag.NewFlagSet("score", flag.ContinueOnError)
 	sinceRaw := fs.String("since", "24h", "duration to look back")
+	batchDelay := fs.Duration("batch-delay", 2*time.Second, "delay between AI API calls")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -136,17 +137,28 @@ func score(ctx context.Context, cfg config.Config, args []string) error {
 		aiScorer := scoring.NewNVIDIA(cfg.NVIDIAAPIKey, cfg.NVIDIABaseURL, cfg.NVIDIAModel, heuristic)
 		notifier := telegram.New(cfg.TelegramBotToken, cfg.TelegramChatID)
 
-		for _, lead := range leads {
+		aiCalls := 0
+		for i, lead := range leads {
 			hScore, err := heuristic.Score(ctx, lead)
 			if err != nil {
 				return err
 			}
 			finalScore := hScore
 			if scoring.ShouldDeepScore(hScore) {
+				// Add delay between AI calls to avoid rate limiting
+				if aiCalls > 0 {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-time.After(*batchDelay):
+					}
+				}
 				finalScore, err = aiScorer.Score(ctx, lead)
 				if err != nil {
 					return err
 				}
+				aiCalls++
+				fmt.Printf("[%d/%d] AI scored lead %d: %d\n", i+1, len(leads), lead.ID, finalScore.Score)
 			}
 			finalScore.LeadID = lead.ID
 			saved, err := repo.InsertLeadScore(ctx, finalScore)
@@ -162,7 +174,7 @@ func score(ctx context.Context, cfg config.Config, args []string) error {
 				}
 			}
 		}
-		fmt.Printf("scored %d leads\n", len(leads))
+		fmt.Printf("scored %d leads (%d AI calls)\n", len(leads), aiCalls)
 		return nil
 	}, false)
 }
@@ -181,7 +193,8 @@ func digest(ctx context.Context, cfg config.Config, args []string) error {
 	}
 
 	return withRepo(ctx, cfg, func(repo *db.Repository) error {
-		candidates, err := repo.DigestCandidates(ctx, core.CategoryFounder, 65, 20)
+		categories := []core.Category{core.CategoryFounder, core.CategoryGig}
+		candidates, err := repo.DigestCandidates(ctx, categories, 50, 20)
 		if err != nil {
 			return err
 		}

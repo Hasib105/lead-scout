@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -43,13 +44,45 @@ func (c Client) SendDigest(ctx context.Context, leads []core.LeadWithScore) erro
 	if len(leads) == 0 {
 		return nil
 	}
-	var b strings.Builder
-	b.WriteString("<b>Daily founder digest</b>\n")
-	for i, item := range leads {
-		fmt.Fprintf(&b, "\n%d. <b>%s</b>\nScore: %d Source: %s\n%s\n%s\n",
-			i+1, escape(item.Lead.Title), item.Score.Score, escape(item.Lead.Source), escape(item.Lead.URL), escape(item.Score.Rationale))
+	const maxMsgLen = 4000
+	var batches [][]core.LeadWithScore
+	var current []core.LeadWithScore
+	currentLen := 80
+
+	for _, lead := range leads {
+		entryLen := len(lead.Lead.Title) + 60
+		if currentLen+entryLen > maxMsgLen && len(current) > 0 {
+			batches = append(batches, current)
+			current = nil
+			currentLen = 80
+		}
+		current = append(current, lead)
+		currentLen += entryLen
 	}
-	return c.send(ctx, b.String(), nil)
+	if len(current) > 0 {
+		batches = append(batches, current)
+	}
+
+	for batchIdx, batch := range batches {
+		var b strings.Builder
+		if len(batches) > 1 {
+			fmt.Fprintf(&b, "<b>Daily Lead Digest</b> (%d/%d)\n", batchIdx+1, len(batches))
+		} else {
+			b.WriteString("<b>Daily Lead Digest</b>\n")
+		}
+		for i, item := range batch {
+			title := item.Lead.Title
+			if len(title) > 60 {
+				title = title[:60] + "..."
+			}
+			fmt.Fprintf(&b, "\n%d. <b>%s</b> (%d)\n%s\n",
+				i+1, escape(title), item.Score.Score, escape(item.Lead.URL))
+		}
+		if err := c.send(ctx, b.String(), nil); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c Client) send(ctx context.Context, text string, replyMarkup any) error {
@@ -74,7 +107,8 @@ func (c Client) send(ctx context.Context, text string, replyMarkup any) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("telegram send failed: %s", resp.Status)
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return fmt.Errorf("telegram send failed: %s - %s", resp.Status, string(respBody))
 	}
 	return nil
 }

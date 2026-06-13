@@ -23,9 +23,15 @@ func (h HN) Name() string { return "hn" }
 
 func (h HN) Fetch(ctx context.Context) ([]core.RawItem, error) {
 	q := url.Values{}
-	q.Set("query", `"seeking freelancer" OR "freelancer? seeking freelancer" OR "contract"`)
-	q.Set("tags", "comment,story")
+	q.Set("query", `"seeking freelancer"`)
+	q.Set("tags", "story")
 	q.Set("hitsPerPage", "50")
+	
+	// Filter to current month only
+	now := time.Now()
+	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	q.Set("numericFilters", fmt.Sprintf("created_at_i>=%d", startOfMonth.Unix()))
+	
 	endpoint := "https://hn.algolia.com/api/v1/search_by_date?" + q.Encode()
 
 	req, _ := http.NewRequest(http.MethodGet, endpoint, nil)

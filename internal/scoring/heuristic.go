@@ -7,7 +7,7 @@ import (
 	"lead-scout/internal/core"
 )
 
-const HeuristicPromptVersion = "heuristic-v1"
+const HeuristicPromptVersion = "heuristic-v2"
 
 type HeuristicScorer struct{}
 
@@ -19,20 +19,50 @@ func (h HeuristicScorer) Score(ctx context.Context, lead core.Lead) (core.LeadSc
 	text := strings.ToLower(lead.Title + " " + lead.Body + " " + lead.Compensation + " " + lead.Location)
 	score := 30
 
-	score += hits(text, []string{"ai", "agent", "saas", "backend", "integration", "automation", "data", "postgres", "supabase"}, 5, 25)
-	score += hits(text, []string{"contract", "freelance", "consultant", "project", "hourly", "$75", "$100", "$150", "budget"}, 6, 30)
-	score += hits(text, []string{"urgent", "asap", "this week", "production", "launch", "blocked", "stuck"}, 5, 20)
-	score += hits(text, []string{"lovable", "bolt", "vibe", "prototype", "mvp", "non-technical founder", "technical cofounder"}, 7, 28)
+	// Hard skip - reject immediately, don't waste AI calls
+	if shouldSkip(text) {
+		return core.LeadScore{
+			LeadID:        lead.ID,
+			Score:         0,
+			Category:      lead.Category,
+			Rationale:     "Rejected: low-quality signal (job board repost, recruiter spam, or irrelevant content).",
+			DraftOpener:   "",
+			ShouldNotify:  false,
+			PromptVersion: HeuristicPromptVersion,
+			Model:         "heuristic-skip",
+		}, nil
+	}
 
+	// Tech fit signals
+	score += hits(text, []string{"ai", "agent", "saas", "backend", "integration", "automation", "data", "postgres", "supabase", "golang", "python", "api"}, 4, 20)
+	
+	// Budget/compensation signals
+	score += hits(text, []string{"contract", "freelance", "consultant", "project", "hourly", "$75", "$100", "$150", "$200", "budget", "paid"}, 5, 25)
+	
+	// Urgency signals
+	score += hits(text, []string{"urgent", "asap", "this week", "production", "launch", "blocked", "stuck", "broken", "need help"}, 5, 20)
+	
+	// Founder/vibe-code signals
+	score += hits(text, []string{"lovable", "bolt", "vibe", "prototype", "mvp", "non-technical founder", "technical cofounder", "no-code"}, 6, 24)
+
+	// Location bonus
 	if strings.Contains(text, "remote") || strings.Contains(text, "us") || strings.Contains(text, "europe") || strings.Contains(text, "eu") {
-		score += 8
+		score += 6
 	}
+	
+	// Penalty for full-time (not what we want)
 	if strings.Contains(text, "full-time") && !strings.Contains(text, "contract") {
-		score -= 12
+		score -= 15
 	}
+	
+	// Hard penalties
 	if strings.Contains(text, "unpaid") || strings.Contains(text, "equity only") || strings.Contains(text, "intern") {
 		score -= 30
 	}
+	if strings.Contains(text, "senior") || strings.Contains(text, "experienced") {
+		score += 5
+	}
+
 	if score > 100 {
 		score = 100
 	}
@@ -56,8 +86,38 @@ func (h HeuristicScorer) Score(ctx context.Context, lead core.Lead) (core.LeadSc
 	}, nil
 }
 
+// shouldSkip returns true for leads that are clearly noise and should not reach AI
+func shouldSkip(text string) bool {
+	// Job board reposts
+	skipPhrases := []string{
+		"we're hiring across",
+		"open positions",
+		"view all jobs",
+		"apply now on",
+		"job board",
+		"click here to apply",
+		"share this job",
+	}
+	for _, phrase := range skipPhrases {
+		if strings.Contains(text, phrase) {
+			return true
+		}
+	}
+	
+	// Too short to be meaningful
+	if len(strings.TrimSpace(text)) < 50 {
+		return true
+	}
+	
+	return false
+}
+
+// ShouldDeepScore determines if a lead needs AI scoring
+// Leads below 50 are clearly low-fit, skip AI
+// Leads 50-64 get heuristic only (borderline)
+// Leads 65+ get AI scoring for precision
 func ShouldDeepScore(score core.LeadScore) bool {
-	return score.Score >= 55
+	return score.Score >= 65
 }
 
 func hits(text string, keywords []string, each, max int) int {

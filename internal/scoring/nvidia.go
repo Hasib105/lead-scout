@@ -147,14 +147,18 @@ func fallbackWithNote(ctx context.Context, backup core.Scorer, lead core.Lead, n
 }
 
 func buildPrompt(lead core.Lead) (string, error) {
+	// Truncate body to save tokens - only need first 500 chars for scoring
+	body := lead.Body
+	if len(body) > 500 {
+		body = body[:500] + "..."
+	}
+	
+	// Only send relevant fields
 	payload, err := json.MarshalIndent(map[string]any{
 		"title":        lead.Title,
-		"body":         lead.Body,
-		"url":          lead.URL,
+		"body":         body,
 		"source":       lead.Source,
 		"category":     lead.Category,
-		"author":       lead.Author,
-		"company":      lead.Company,
 		"location":     lead.Location,
 		"compensation": lead.Compensation,
 	}, "", "  ")
@@ -171,6 +175,7 @@ Rules:
 - Founder leads are usually digest candidates, not immediate alerts.
 - Never suggest automated outreach; the opener is a manual draft for the user to edit.
 - Penalize unpaid, equity-only, junior, internship, and generic full-time roles.
+- Keep rationale under 50 words.
 
 Lead:
 ` + string(payload), nil

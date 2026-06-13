@@ -222,7 +222,7 @@ func (s *Server) digest(w http.ResponseWriter, r *http.Request) {
 	if req.Limit <= 0 || req.Limit > 100 {
 		req.Limit = 20
 	}
-	candidates, err := s.repo.DigestCandidates(r.Context(), core.CategoryFounder, 65, req.Limit)
+	candidates, err := s.repo.DigestCandidates(r.Context(), []core.Category{core.CategoryFounder, core.CategoryGig}, 50, req.Limit)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return

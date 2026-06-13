@@ -16,6 +16,60 @@ Lead Scout is a small Go CLI/service with these packages:
 
 The first version runs as commands. Pandora can schedule those commands through systemd timers while `lead-scout bot` runs as a service.
 
+## Build Phases
+
+### Phase 1: Weekend V1
+
+Scope:
+
+- API-first collectors for HN, Braintrust, RemoteOK, WeWorkRemotely, and Reddit.
+- Postgres-backed raw item, lead, score, event, and digest storage.
+- Heuristic gate plus NVIDIA deep scoring.
+- Telegram hot alerts for high-score gigs.
+- Daily Telegram digest for qualified founder leads.
+- Telegram callback handling for local CRM-lite state changes.
+
+Exit criteria:
+
+- `go test ./...` passes.
+- `collect --all`, `score --since 24h`, and `digest --daily` work with configured credentials.
+- Missing optional credentials, such as Reddit, do not break other collectors.
+- No code path sends automated outreach.
+
+### Phase 2: Founder-Intent Classifier
+
+Scope:
+
+- Add explicit founder rescue signal extraction during normalization or scoring.
+- Track signals such as Lovable/Bolt prototypes, production-readiness requests, Supabase RLS, auth/deployment pain, credit burn, and "hire a developer" intent.
+- Add configurable Reddit searches and subreddit lists for founder/no-code/vibe-coding communities.
+- Add manual inbound source support for Lovable Experts, VibeCodeFixers, Fiverr, and similar listings.
+- Review outcome feedback from lead state transitions and tune scoring rubrics.
+
+Exit criteria:
+
+- Founder leads can show which intent signals made them qualify.
+- Digest entries include signal-specific rationale.
+- Manual inbound leads can be inserted, scored, and tracked through the same state machine.
+- Scoring review can compare accepted/rejected outcomes against original score reasons.
+
+### Phase 3: Risk-Aware Enrichment
+
+Scope:
+
+- Add optional LinkedIn read-assist that runs only through a human-controlled Windows browser workflow.
+- Add optional X collector through paid API credentials and narrow intent queries.
+- Keep Discord as manual presence only, with no self-bot or logged-in scraping.
+- Store enrichment data separately from source payloads so original lead provenance remains auditable.
+- Add configuration flags so risky or paid enrichment is disabled by default.
+
+Exit criteria:
+
+- LinkedIn enrichment cannot post, message, connect, or browse without user action.
+- X collection uses API credentials, records query scope, and can be disabled independently.
+- No Discord automation exists.
+- Phase 1 collectors continue to work without any enrichment setup.
+
 ## Database
 
 Use Docker Postgres with these tables:

@@ -3,6 +3,9 @@ package collectors
 import (
 	"errors"
 	"fmt"
+	"time"
+	
+	"lead-scout/internal/core"
 )
 
 func stringField(m map[string]any, key string) string {
@@ -52,4 +55,17 @@ func errStatus(status string) error {
 		return errors.New("unexpected http status")
 	}
 	return errors.New(status)
+}
+
+func filterByCurrentMonth(items []core.RawItem) []core.RawItem {
+	now := time.Now()
+	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	
+	filtered := make([]core.RawItem, 0, len(items))
+	for _, item := range items {
+		if item.PublishedAt == nil || item.PublishedAt.After(startOfMonth) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
 }

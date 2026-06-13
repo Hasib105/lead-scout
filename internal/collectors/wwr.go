@@ -53,7 +53,7 @@ func (w WWR) Fetch(ctx context.Context) ([]core.RawItem, error) {
 			PublishedAt: parseRSSTime(item.PubDate),
 		})
 	}
-	return items, nil
+	return filterByCurrentMonth(items), nil
 }
 
 type rssFeed struct {

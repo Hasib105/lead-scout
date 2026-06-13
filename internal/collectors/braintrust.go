@@ -43,5 +43,5 @@ func (b Braintrust) Fetch(ctx context.Context) ([]core.RawItem, error) {
 			Payload:    body,
 		})
 	}
-	return items, nil
+	return filterByCurrentMonth(items), nil
 }
