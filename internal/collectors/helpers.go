@@ -3,6 +3,7 @@ package collectors
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 	
 	"lead-scout/internal/core"
@@ -68,4 +69,8 @@ func filterByCurrentMonth(items []core.RawItem) []core.RawItem {
 		}
 	}
 	return filtered
+}
+
+func containsIgnoreCase(s, substr string) bool {
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }

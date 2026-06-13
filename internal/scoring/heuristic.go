@@ -33,8 +33,10 @@ func (h HeuristicScorer) Score(ctx context.Context, lead core.Lead) (core.LeadSc
 		}, nil
 	}
 
-	// Tech fit signals
-	score += hits(text, []string{"ai", "agent", "saas", "backend", "integration", "automation", "data", "postgres", "supabase", "golang", "python", "api"}, 4, 20)
+	// Tech fit signals - higher weight for your specialties
+	score += hits(text, []string{"ai", "agent", "agentic", "llm", "gpt", "openai", "langchain", "vector", "rag"}, 7, 35)
+	score += hits(text, []string{"web", "fullstack", "full-stack", "frontend", "backend", "react", "nextjs", "node", "typescript"}, 6, 30)
+	score += hits(text, []string{"saas", "integration", "automation", "api", "database", "postgres", "supabase"}, 5, 25)
 	
 	// Budget/compensation signals
 	score += hits(text, []string{"contract", "freelance", "consultant", "project", "hourly", "$75", "$100", "$150", "$200", "budget", "paid"}, 5, 25)
@@ -97,6 +99,11 @@ func shouldSkip(text string) bool {
 		"job board",
 		"click here to apply",
 		"share this job",
+		"looking for work",
+		"seeking work",
+		"available for hire",
+		"my resume",
+		"my portfolio",
 	}
 	for _, phrase := range skipPhrases {
 		if strings.Contains(text, phrase) {
@@ -113,11 +120,11 @@ func shouldSkip(text string) bool {
 }
 
 // ShouldDeepScore determines if a lead needs AI scoring
-// Leads below 50 are clearly low-fit, skip AI
-// Leads 50-64 get heuristic only (borderline)
-// Leads 65+ get AI scoring for precision
+// Leads below 40 are clearly low-fit, skip AI
+// Leads 40-54 get heuristic only (borderline)
+// Leads 55+ get AI scoring for precision
 func ShouldDeepScore(score core.LeadScore) bool {
-	return score.Score >= 65
+	return score.Score >= 55
 }
 
 func hits(text string, keywords []string, each, max int) int {
